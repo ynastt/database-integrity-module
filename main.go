@@ -362,7 +362,7 @@ func describe(err error) string {
 	return fmt.Sprintf("%v (%v)", err, msg)
 }
 
-func ImportNodes(db driver.Database, coll string, ch chan []Node, keys *os.File) {
+func ImportNodes(db driver.Database, coll string, ch <-chan []Node, keys *os.File) {
 	//get docs from chan and open collection with "coll" name
 	arr := <-ch
 	log.Println("got nodes from channel " + "coll_name is " + coll)
@@ -395,7 +395,7 @@ func ImportNodes(db driver.Database, coll string, ch chan []Node, keys *os.File)
 	}	
 }
 
-func ImportEdges(db driver.Database, coll string, ch chan []Edge, keys *os.File) {
+func ImportEdges(db driver.Database, coll string, ch <-chan []Edge, keys *os.File) {
 	//get docs from chan and open collection with "coll" name
 	arr := <-ch
 	log.Println("got edges from channel " + "coll_name is " + coll)

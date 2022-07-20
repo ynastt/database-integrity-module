@@ -24,7 +24,6 @@ type Edge struct {
 	To		string	`json:"_to"`
 }
 
-
 const (
 	SERVER_HOST        = "localhost"
 	SERVER_PORT        = 10001
@@ -61,8 +60,10 @@ func main() {
 		Authentication: driver.BasicAuthentication("root", ""),
 	})
 	
-	/* open ArangoDB database with "db_name: name */
-	db_name := "mybd"	
+	/* open ArangoDB database with entered name name */
+	fmt.Println("Enter database name: ")
+	var db_name string
+	fmt.Scanf("%s", &db_name)
 	db_exists, err := client.DatabaseExists(nil, db_name)
 	
 	if db_exists {
@@ -72,11 +73,23 @@ func main() {
 		} 
 		fmt.Println(db.Name() + " exists")
 	} else {
-		db, err = client.CreateDatabase(nil, db_name, nil)
-		if err != nil {
-			log.Fatalf("Failed to create database: %v", err)
+		fmt.Println("Sorry, database with this name doesn`t exist")
+		fmt.Println("Do you want to create database with this name? [y/n]: ")
+		var ans string
+		fmt.Scanf("%s", &ans) 
+		if ans == "y" {
+			db, err = client.CreateDatabase(nil, db_name, nil)
+			if err != nil {
+				log.Fatalf("Failed to create database: %v", err)
+			}
+			fmt.Println("the database is successfully created. Rerun the program")
+			os.Exit(1)
 		}
-	}
+		if ans == "n" {
+			fmt.Println("Rerun the program and enter the correct database name ")
+			os.Exit(1)
+		}
+	} 
 	
 	/* make file for nodes and edges didn`t exist in db before importDocument method */
 	keys, err = os.Create("keys_of_imported_docs.txt")
@@ -86,7 +99,7 @@ func main() {
     	}
     	defer keys.Close() 
 	
-	/* getblockcount */
+	/* getblockcount; can use count variable insted of n variable in for cycle for blocks */
 	/*count, err := bc.GetBlockCount()
 	if err != nil {
 		log.Fatalf("Failed to get blockCount: %v", err)
@@ -97,7 +110,7 @@ func main() {
 	/* later we`ll call goroutines for each collection*/
 	blocks := make(chan []Node, 100)			
 	txs := make(chan []Node, 1000)
-	addrs := make(chan []Node, 2500) //2533/2525 imported 
+	addrs := make(chan []Node, 2500)
 	in := make(chan []Edge, 1000)
 	out := make(chan []Edge, 1000)
 	next := make(chan []Edge, 1000)
@@ -144,8 +157,13 @@ func main() {
     	}
     	defer file.Close() 
     	
-	var n uint64
-	for n = 1; n < 500; n ++ {
+    	var n, start, end uint64
+    	fmt.Println("Enter the starting block index: ")
+    	fmt.Scanf("%d", &start)
+    	fmt.Println("Enter the ending block index: ")
+    	fmt.Scanf("%d", &end)
+    	
+	for n = start; n <= end; n ++ {
 		/* get blockhash */
 		hash, err := bc.GetBlockHash(n)
 		if err != nil {
@@ -344,7 +362,7 @@ func describe(err error) string {
 	return fmt.Sprintf("%v (%v)", err, msg)
 }
 
-func ImportNodes(db driver.Database, coll string, ch chan []Node, keys *os.File) {
+func ImportNodes(db driver.Database, coll string, ch <-chan []Node, keys *os.File) {
 	//get docs from chan and open collection with "coll" name
 	arr := <-ch
 	log.Println("got nodes from channel " + "coll_name is " + coll)
@@ -377,7 +395,7 @@ func ImportNodes(db driver.Database, coll string, ch chan []Node, keys *os.File)
 	}	
 }
 
-func ImportEdges(db driver.Database, coll string, ch chan []Edge, keys *os.File) {
+func ImportEdges(db driver.Database, coll string, ch <-chan []Edge, keys *os.File) {
 	//get docs from chan and open collection with "coll" name
 	arr := <-ch
 	log.Println("got edges from channel " + "coll_name is " + coll)
@@ -411,6 +429,3 @@ func ImportEdges(db driver.Database, coll string, ch chan []Edge, keys *os.File)
 	}	
 }
 
-//TODO
-// распараллелить блоки?
-// отдельный скрипт на основе этого для проверки по всем полям для коллекций 

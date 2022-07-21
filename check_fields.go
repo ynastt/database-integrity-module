@@ -24,7 +24,7 @@ type BitcoinTxNode struct {
 type BitcoinBlockNode struct {
 	BlockHeight	uint64  `json:"blockHeight"` 
 	Key		string	`json:"_key"`		//string(blockHeight)
-	BlockHash	string	`json: "blockHash"`
+	BlockHash	string	`json:"blockHash"`
 }
 
 type BitcoinParentBlockEdge struct {

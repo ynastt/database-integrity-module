@@ -15,7 +15,7 @@ ArangoDB database integrity module
 
 ## Важно
 - Для задания параметров подключения к Bitcoin Core измените константы SERVER_HOST, SERVER_PORT, USER, PASSWD, USESSL в `bitcoin_rpc.go`	
-- в пакет go-bitcoind добавлен дополнительный метод `GetRawTransactionUPD` в файл `bitcoind.go`, файл с этой функцией расположен в репозитории. После сборки программы, небходимо заменить исходный файл `src/github.com/Toorop/go-bitcoind/bitcoind.go` на данный 
+- в пакет go-bitcoind добавлен дополнительный метод `GetRawTransactionUPD` в файл `bitcoind.go`, файл с этой функцией расположен в репозитории. При выполнении сборки программы, небходимо заменить исходный файл `src/github.com/Toorop/go-bitcoind/bitcoind.go` на данный, после замены заново выполните команду сборки 
 - при выполнении программы будут созданы текстовые файлы:
     - `txt/transactions.txt` для транзакций с разными типами представления выхода
     - `txt/keys_of_imported_docs.txt`для ключей документов, которые не попали в базу данных при переносе с bitcoin-core

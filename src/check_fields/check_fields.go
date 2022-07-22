@@ -17,7 +17,7 @@ import (
 var file *os.File
 var db driver.Database
 
-func Check() {
+func Check(db driver.Database) {
 	var err error
 	/* connect to bitcoin-core */
 	bc := btc.ConnectBitcoin()
@@ -58,7 +58,7 @@ func Check() {
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
 			msg_tx := btc.GetRawTransaction(t, true, bc)
-			//log.Printf("fileds for btcTx: key: %s\ntime: %d\n", msg_tx.Txid, msg_tx.Time)
+			log.Printf("fileds for btcTx: key: %s\ntime: %d\n", msg_tx.Txid, msg_tx.Time)
 			arr_tx = append(arr_tx, ar.BitcoinTxNode{ Key: msg_tx.Txid, Time: msg_tx.Time})
 			parentBlockKey := str + "_" + msg_tx.Txid
 			//log.Printf("_key in btcParentBlock: %s\n", parentBlockKey)

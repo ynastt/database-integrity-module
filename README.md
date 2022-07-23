@@ -13,8 +13,7 @@ ArangoDB database integrity module
 - необходимо выполнить команду `bash ./build.sh`
 - в каталоге `bin` появится исполняемый файл `main`
 
-## Важно
-- Для задания параметров подключения к Bitcoin Core измените константы SERVER_HOST, SERVER_PORT, USER, PASSWD, USESSL в `bitcoin_rpc.go`	
+## Важно	
 - в пакет go-bitcoind добавлен дополнительный метод `GetRawTransactionUPD` в файл `bitcoind.go`, файл с этой функцией расположен в репозитории. При выполнении сборки программы, небходимо заменить исходный файл `src/github.com/Toorop/go-bitcoind/bitcoind.go` на данный, после замены заново выполните команду сборки `bash ./build.sh`
 - при выполнении программы будут созданы текстовые файлы:
     - `txt/transactions.txt` для транзакций с разными типами представления выхода

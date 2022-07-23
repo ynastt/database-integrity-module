@@ -10,25 +10,24 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	driver "github.com/arangodb/go-driver"
-	
-	//"check_fields"
+	check "check_fields"
 	ar "arango"
 	btc "bitcoin_rpc"
 )
 
 var keys *os.File
-var db driver.Database
 
-func main() {
-	
+func main() {	
 	var err error
 	
 	/* connect to bitcoin-core */
-	bc := btc.ConnectBitcoin()
+	bcApi := btc.BitcoinConfig{ Host: "localhost", Port: 10001, User: "btcuser", Password: "1234", UseSSL: false}
+	bc := bcApi.ConnectBitcoin()
 	
 	/* connect to arangodb server using http */
 	/* open ArangoDB database with entered name name */
-	db = ar.Connect()
+	dbApi := ar.ArangoConfig{ Port: "8529", User: "root", Password: "",}
+	db := dbApi.Connect()
 	
 	flag.Parse()
 	
@@ -42,13 +41,13 @@ func main() {
 		
 	/* make chans for each of collection */
 	/* later we`ll call goroutines for each collection*/
-	blocks := make(chan []ar.Node, 100)			
-	txs := make(chan []ar.Node, 1000)
-	addrs := make(chan []ar.Node, 2500)
-	in := make(chan []ar.Edge, 1000)
-	out := make(chan []ar.Edge, 1000)
-	next := make(chan []ar.Edge, 1000)
-	parents := make(chan []ar.Edge, 1000)
+	//blocks := make(chan []ar.Node, 100)			
+	//txs := make(chan []ar.Node, 1000)
+	//addrs := make(chan []ar.Node, 2500)
+	//in := make(chan []ar.Edge, 1000)
+	//out := make(chan []ar.Edge, 1000)
+	//next := make(chan []ar.Edge, 1000)
+	//parents := make(chan []ar.Edge, 1000)
 		
 	/* for saving _key fields of docs for ImportDocuments method */
 	arr_block := make([]ar.Node, 0, 100)	
@@ -90,27 +89,27 @@ func main() {
     	fmt.Scanf("%d", &end)
     	
 	for n = start; n <= end; n ++ {
-		hash := btc.GetBlockHash(n, bc)
+		hash := bcApi.GetBlockHash(n, bc)
 		//log.Printf("block %d has blockHash: %s\n", n, hash)
-		block := btc.GetBlock(hash, bc)
+		block := bcApi.GetBlock(hash, bc)
 		log.Printf("_key in btcBlock: %d\n", block.Height)
 		str := strconv.FormatInt(int64(block.Height), 10)
 		arr_block = append(arr_block, ar.Node{ Key: str, })
-		blocks <- arr_block
-		go ImportNodes(db, "btcBlock", blocks, keys)
+		//blocks <- arr_block
+		//go ImportNodes(db, "btcBlock", blocks, keys)
 		/* get all txid from msg_block - block.Tx */
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
-			msg_tx := btc.GetRawTransaction(t, true, bc)
+			msg_tx := bcApi.GetRawTransaction(t, true, bc)
 			log.Printf("_key in btcTx: %s\n", msg_tx.Txid)
 			arr_tx = append(arr_tx, ar.Node{ Key: msg_tx.Txid, })
-			txs <- arr_tx
-			go ImportNodes(db, "btcTx", txs, keys)
+			//txs <- arr_tx
+			//go ImportNodes(db, "btcTx", txs, keys)
 			parentBlockKey := str + "_" + msg_tx.Txid
 			log.Printf("_key in btcParentBlock: %s\n", parentBlockKey)
 			arr_parent = append(arr_parent, ar.Edge{ Key: parentBlockKey, From: "t/t", To: "t/t", })
-			parents <- arr_parent
-			go ImportEdges(db, "btcParentBlock", parents, keys)
+			//parents <- arr_parent
+			//go ImportEdges(db, "btcParentBlock", parents, keys)
 			
 			for _, vin := range msg_tx.Vin {
 				txid := vin.Txid
@@ -134,16 +133,16 @@ func main() {
 				log.Printf("_key in btcNext: %s\n", edgesKey)
 				if edgesKey != "" {
 					arr_in = append(arr_in, ar.Edge{ Key: edgesKey, From: "t/t", To: "t/t", })
-					in <- arr_in
-					go ImportEdges(db, "btcIn", in, keys)
+					//in <- arr_in
+					//go ImportEdges(db, "btcIn", in, keys)
 					arr_next = append(arr_next, ar.Edge{ Key: edgesKey, From: "t/t", To: "t/t", })
-					next <- arr_next
-					go ImportEdges(db, "btcNext", next, keys)
+					//next <- arr_next
+					//go ImportEdges(db, "btcNext", next, keys)
 				}
 				if edgeOutKey != "" {
 					arr_out = append(arr_out, ar.Edge{ Key: edgeOutKey, From: "t/t", To: "t/t", })
-					out <- arr_out
-					go ImportEdges(db, "btcOut", out, keys )
+					//out <- arr_out
+					//go ImportEdges(db, "btcOut", out, keys)
 				}
 			}
 			
@@ -232,15 +231,22 @@ func main() {
 					}
 				}	
 				arr_addr = append(arr_addr, ar.Node{ Key: addrKey, })
-				addrs <- arr_addr
-				go ImportNodes(db, "btcAddress", addrs, keys)
+				//addrs <- arr_addr
+				//go ImportNodes(db, "btcAddress", addrs, keys)
 				log.Printf("_key in btcAddress: %s\n", addrKey) //here
 			}
 		}
+		ImportNodes(db, "btcTx", arr_tx, keys)
+		ImportEdges(db, "btcParentBlock", arr_parent, keys)
+		ImportEdges(db, "btcNext", arr_next, keys)
+		ImportEdges(db, "btcIn", arr_in, keys)
+		ImportEdges(db, "btcOut", arr_out, keys)
+		ImportNodes(db, "btcAddress", arr_addr, keys)
 	}
-	//ImportNodes(db, "btcBlock", arr_block, keys)
+	ImportNodes(db, "btcBlock", arr_block, keys)
 	/* check fields of docs in collections*/
-	//check_fields.Check()
+	log.Println("\n\nCheck other fields of documents")
+	check.Check(db)
 	log.Println("end of process")
 }
 
@@ -274,9 +280,9 @@ func describe(err error) string {
 	return fmt.Sprintf("%v (%v)", err, msg)
 }
 
-func ImportNodes(db driver.Database, coll string, ch <-chan []ar.Node, keys *os.File) {
-	arr := <-ch
-	log.Println("got nodes from channel " + "coll_name is " + coll)
+func ImportNodes(db driver.Database, coll string, arr []ar.Node, keys *os.File) {
+	//arr := <-ch
+	//log.Println("got nodes from channel " + "coll_name is " + coll)
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)
@@ -306,9 +312,9 @@ func ImportNodes(db driver.Database, coll string, ch <-chan []ar.Node, keys *os.
 	}	
 }
 
-func ImportEdges(db driver.Database, coll string, ch <-chan []ar.Edge, keys *os.File) {
-	arr := <-ch
-	log.Println("got edges from channel " + "coll_name is " + coll)
+func ImportEdges(db driver.Database, coll string, arr []ar.Edge, keys *os.File) {
+	//arr := <-ch
+	//log.Println("got edges from channel " + "coll_name is " + coll)
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)

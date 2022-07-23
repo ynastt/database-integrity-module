@@ -16,18 +16,20 @@ import (
 )
 
 var keys *os.File
-var db driver.Database
+//var db driver.Database
 
 func main() {
 	
 	var err error
 	
 	/* connect to bitcoin-core */
-	bc := btc.ConnectBitcoin()
+	bcApi := btc.BitcoinConfig{ Host: "localhost", Port: 10001, User: "btcuser", Password: "1234", UseSSL: false}
+	bc := bcApi.ConnectBitcoin()
 	
 	/* connect to arangodb server using http */
 	/* open ArangoDB database with entered name name */
-	db = ar.Connect()
+	dbApi := ar.ArangoConfig{ Port: "8529", User: "root", Password: "",}
+	db := dbApi.Connect()
 	
 	flag.Parse()
 	
@@ -245,6 +247,7 @@ func main() {
 	}
 	ImportNodes(db, "btcBlock", arr_block, keys)
 	/* check fields of docs in collections*/
+	log.Println("\n\nCheck other fields of documents")
 	check.Check(db)
 	log.Println("end of process")
 }

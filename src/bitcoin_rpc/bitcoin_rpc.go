@@ -5,18 +5,17 @@ import (
 	"github.com/Toorop/go-bitcoind"
 )
 
-const (
-	SERVER_HOST        = "localhost"
-	SERVER_PORT        = 10001
-	USER               = "btcuser"
-	PASSWD             = "1234"
-	USESSL             = false
-)
-
+type BitcoinConfig struct {
+	Host 		string
+	Port		int
+	User		string
+	Password	string
+	UseSSL		bool
+}
 
 /* connect to bitcoin-core */
-func ConnectBitcoin() *bitcoind.Bitcoind { 
-	bc, err := bitcoind.New(SERVER_HOST, SERVER_PORT, USER, PASSWD, USESSL)
+func (api *BitcoinConfig) ConnectBitcoin() *bitcoind.Bitcoind { 
+	bc, err := bitcoind.New(api.Host, api.Port, api.User, api.Password, api.UseSSL)
 	if err != nil {
 		log.Fatalln(err)
 	}

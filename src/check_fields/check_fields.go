@@ -20,7 +20,8 @@ var db driver.Database
 func Check(db driver.Database) {
 	var err error
 	/* connect to bitcoin-core */
-	bc := btc.ConnectBitcoin()
+	bcApi := btc.BitcoinConfig{ Host: "localhost", Port: 10001, User: "btcuser", Password: "1234", UseSSL: false}
+	bc := bcApi.ConnectBitcoin()
 		
 	/* make file for nodes and edges with incorrect field values */
 	file, err = os.Create("../txt/incorrect_fields.txt")
@@ -46,7 +47,6 @@ func Check(db driver.Database) {
     	
 	var n uint64
 	for n = start; n <= end ; n ++ {
-		
 		hash := btc.GetBlockHash(n, bc)
 		log.Printf("block %d has blockHash: %s\n", n, hash)
 		block := btc.GetBlock(hash, bc)
@@ -131,7 +131,7 @@ func Check(db driver.Database) {
 		CheckFieldsofInOutEdge(db, "btcIn", arr_in, file)
 	}
 	CheckFieldsofBlockNode(db, "btcBlock", arr_block, file)
-	log.Println("end of process")
+	log.Println("end of checking fields")
 }
 
 func CheckFieldsofInOutEdge(db driver.Database, coll string, arr []ar.BitcoinOutputEdge, file *os.File) {

@@ -26,7 +26,7 @@ type Edge struct {
 
 type BitcoinBlockNode struct {
 	BlockHeight	uint64  `json:"blockHeight"` 
-	Key		string	`json:"_key"`		//string(blockHeight)
+	Key		string	`json:"_key"`		
 	BlockHash	string	`json:"blockHash"`
 }
 
@@ -56,9 +56,15 @@ type BitcoinNextEdge struct {
 
 //BitcoinInEdge has the same structure as BitcoinOutputEdge but _from :'btcAddress/{_key}', _to: 'btcTx/{_key}'
 
+type ArangoConfig struct {
+	Port 		string
+	User 		string
+	Password	string
+} 
+
 /* connect to arangodb server using http */
 /* open ArangoDB database with entered name name */
-func Connect() driver.Database {
+func (api *ArangoConfig) Connect() driver.Database {
 	var err error
 	var client driver.Client
 	var conn driver.Connection
@@ -66,14 +72,14 @@ func Connect() driver.Database {
 	flag.Parse()
 
 	conn, err = http.NewConnection(http.ConnectionConfig{
-		Endpoints: []string{"http://localhost:8529"},
+		Endpoints: []string{"http://localhost:" + api.Port},
 	})
 	if err != nil {
 		log.Fatalf("Failed to create HTTP connection: %v", err)
 	}
 	client, err = driver.NewClient(driver.ClientConfig{
 		Connection:     conn,
-		Authentication: driver.BasicAuthentication("root", ""),
+		Authentication: driver.BasicAuthentication(api.User, api.Password),
 	})
 
 	fmt.Println("Enter database name: ")

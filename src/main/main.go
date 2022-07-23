@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"os"
+	"sync"
 	"encoding/hex"
 	"encoding/json"
 	driver "github.com/arangodb/go-driver"
@@ -16,6 +17,7 @@ import (
 )
 
 var keys *os.File
+var db driver.Database
 
 func main() {	
 	var err error
@@ -28,7 +30,7 @@ func main() {
 	/* open ArangoDB database with entered name name */
 	dbApi := ar.ArangoConfig{ Port: "8529", User: "root", Password: "",}
 	db := dbApi.Connect()
-	
+		
 	flag.Parse()
 	
 	/* make file for nodes and edges didn`t exist in db before importDocument method */
@@ -41,13 +43,13 @@ func main() {
 		
 	/* make chans for each of collection */
 	/* later we`ll call goroutines for each collection*/
-	//blocks := make(chan []ar.Node, 100)			
-	//txs := make(chan []ar.Node, 1000)
-	//addrs := make(chan []ar.Node, 2500)
-	//in := make(chan []ar.Edge, 1000)
-	//out := make(chan []ar.Edge, 1000)
-	//next := make(chan []ar.Edge, 1000)
-	//parents := make(chan []ar.Edge, 1000)
+	blocks := make(chan []ar.Node, 1)			
+	txs := make(chan []ar.Node, 1)
+	addrs := make(chan []ar.Node, 1)
+	in := make(chan []ar.Edge, 1)
+	out := make(chan []ar.Edge, 1)
+	next := make(chan []ar.Edge, 1)
+	parents := make(chan []ar.Edge, 1)
 		
 	/* for saving _key fields of docs for ImportDocuments method */
 	arr_block := make([]ar.Node, 0, 100)	
@@ -88,28 +90,38 @@ func main() {
     	fmt.Println("Enter the ending block index: ")
     	fmt.Scanf("%d", &end)
     	
+    	var wg sync.WaitGroup
+    	wg.Add(int(end-start+1))
+    	
 	for n = start; n <= end; n ++ {
 		hash := bcApi.GetBlockHash(n, bc)
 		//log.Printf("block %d has blockHash: %s\n", n, hash)
 		block := bcApi.GetBlock(hash, bc)
-		log.Printf("_key in btcBlock: %d\n", block.Height)
+		//log.Printf("_key in btcBlock: %d\n", block.Height)
 		str := strconv.FormatInt(int64(block.Height), 10)
 		arr_block = append(arr_block, ar.Node{ Key: str, })
-		//blocks <- arr_block
-		//go ImportNodes(db, "btcBlock", blocks, keys)
+		blocks <- arr_block
+		arr_block = arr_block[:0]
+		go ImportNodes(db, "btcBlock", blocks, keys, &wg)
+		
 		/* get all txid from msg_block - block.Tx */
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
+			
 			msg_tx := bcApi.GetRawTransaction(t, true, bc)
-			log.Printf("_key in btcTx: %s\n", msg_tx.Txid)
+			//log.Printf("_key in btcTx: %s\n", msg_tx.Txid)
 			arr_tx = append(arr_tx, ar.Node{ Key: msg_tx.Txid, })
-			//txs <- arr_tx
-			//go ImportNodes(db, "btcTx", txs, keys)
+			txs <- arr_tx
+			arr_tx = arr_tx[:0]
+			wg.Add(1)
+			go ImportNodes(db, "btcTx", txs, keys, &wg)
 			parentBlockKey := str + "_" + msg_tx.Txid
-			log.Printf("_key in btcParentBlock: %s\n", parentBlockKey)
+			//log.Printf("_key in btcParentBlock: %s\n", parentBlockKey)
 			arr_parent = append(arr_parent, ar.Edge{ Key: parentBlockKey, From: "t/t", To: "t/t", })
-			//parents <- arr_parent
-			//go ImportEdges(db, "btcParentBlock", parents, keys)
+			parents <- arr_parent
+			arr_parent = arr_parent[:0]
+			wg.Add(1)
+			go ImportEdges(db, "btcParentBlock", parents, keys, &wg)
 			
 			for _, vin := range msg_tx.Vin {
 				txid := vin.Txid
@@ -128,21 +140,27 @@ func main() {
 					edgesKey = txid + "_" + voutstr
 					edgeOutKey = txid + "_" + voutstr
 				}
-				log.Printf("_key in btcIn: %s\n", edgesKey)
-				log.Printf("_key in btcOut: %s\n", edgeOutKey)
-				log.Printf("_key in btcNext: %s\n", edgesKey)
+				//log.Printf("_key in btcIn: %s\n", edgesKey)
+				//log.Printf("_key in btcOut: %s\n", edgeOutKey)
+				//log.Printf("_key in btcNext: %s\n", edgesKey)
 				if edgesKey != "" {
 					arr_in = append(arr_in, ar.Edge{ Key: edgesKey, From: "t/t", To: "t/t", })
-					//in <- arr_in
-					//go ImportEdges(db, "btcIn", in, keys)
+					in <- arr_in
+					arr_in = arr_in[:0]
+					wg.Add(1)
+					go ImportEdges(db, "btcIn", in, keys, &wg)
 					arr_next = append(arr_next, ar.Edge{ Key: edgesKey, From: "t/t", To: "t/t", })
-					//next <- arr_next
-					//go ImportEdges(db, "btcNext", next, keys)
+					next <- arr_next
+					arr_next= arr_next[:0]
+					wg.Add(1)
+					go ImportEdges(db, "btcNext", next, keys, &wg)
 				}
 				if edgeOutKey != "" {
 					arr_out = append(arr_out, ar.Edge{ Key: edgeOutKey, From: "t/t", To: "t/t", })
-					//out <- arr_out
-					//go ImportEdges(db, "btcOut", out, keys)
+					out <- arr_out
+					arr_out= arr_out[:0]
+					wg.Add(1)
+					go ImportEdges(db, "btcOut", out, keys, &wg)
 				}
 			}
 			
@@ -231,21 +249,24 @@ func main() {
 					}
 				}	
 				arr_addr = append(arr_addr, ar.Node{ Key: addrKey, })
-				//addrs <- arr_addr
-				//go ImportNodes(db, "btcAddress", addrs, keys)
-				log.Printf("_key in btcAddress: %s\n", addrKey) //here
+				addrs <- arr_addr
+				arr_addr= arr_addr[:0]
+				wg.Add(1)
+				go ImportNodes(db, "btcAddress", addrs, keys, &wg)
+				//log.Printf("_key in btcAddress: %s\n", addrKey) //here
 			}
 		}
-		ImportNodes(db, "btcTx", arr_tx, keys)
-		ImportEdges(db, "btcParentBlock", arr_parent, keys)
-		ImportEdges(db, "btcNext", arr_next, keys)
-		ImportEdges(db, "btcIn", arr_in, keys)
-		ImportEdges(db, "btcOut", arr_out, keys)
-		ImportNodes(db, "btcAddress", arr_addr, keys)
 	}
-	ImportNodes(db, "btcBlock", arr_block, keys)
+	wg.Wait()
+	close(addrs)
+	close(out)
+	close(in)
+	close(next)
+	close(txs)
+	close(parents)
+	close(blocks)
 	/* check fields of docs in collections*/
-	log.Println("\n\nCheck other fields of documents")
+	log.Println("\n\nstart checking fields")
 	check.Check(db)
 	log.Println("end of process")
 }
@@ -280,8 +301,9 @@ func describe(err error) string {
 	return fmt.Sprintf("%v (%v)", err, msg)
 }
 
-func ImportNodes(db driver.Database, coll string, arr []ar.Node, keys *os.File) {
-	//arr := <-ch
+func ImportNodes(db driver.Database, coll string, ch <-chan []ar.Node, keys *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	//log.Println("got nodes from channel " + "coll_name is " + coll)
 	col, err := db.Collection(nil, coll)
 	if err != nil {
@@ -297,7 +319,7 @@ func ImportNodes(db driver.Database, coll string, arr []ar.Node, keys *os.File) 
 		log.Fatalf("Failed to import documents: %s %#v", describe(err), err)
 	} else {
 		if stats.Created != int64(len(arr)) {
-			log.Printf("Expected %d created documents, got %d (json %s)", len(arr), stats.Created, formatRawResponse(raw))
+			log.Printf("Collection: %s: Expected %d created documents, got %d (json %s)", coll, len(arr), stats.Created, 				formatRawResponse(raw))
 			// field Created holds the number of documents imported.
 			// we expect that method ImportDocuments will import all docs from array. 
 			//But this method will not import the current document because of the unique key constraint violation.
@@ -312,8 +334,9 @@ func ImportNodes(db driver.Database, coll string, arr []ar.Node, keys *os.File) 
 	}	
 }
 
-func ImportEdges(db driver.Database, coll string, arr []ar.Edge, keys *os.File) {
-	//arr := <-ch
+func ImportEdges(db driver.Database, coll string, ch <-chan []ar.Edge, keys *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	//log.Println("got edges from channel " + "coll_name is " + coll)
 	col, err := db.Collection(nil, coll)
 	if err != nil {
@@ -329,7 +352,7 @@ func ImportEdges(db driver.Database, coll string, arr []ar.Edge, keys *os.File) 
 		log.Fatalf("Failed to import documents: %s %#v", describe(err), err)
 	} else {
 		if stats.Created != int64(len(arr)) {
-			log.Printf("Expected %d created documents, got %d (json %s)", len(arr), stats.Created, formatRawResponse(raw))
+			log.Printf("Collection: %s: Expected %d created documents, got %d (json %s)", coll, len(arr), stats.Created, 				formatRawResponse(raw))
 			// field Created holds the number of documents imported.
 			// we expect that method ImportDocuments will import all docs from array. 
 			//But this method will not import the current document because of the unique key constraint violation.

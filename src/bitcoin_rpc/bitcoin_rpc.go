@@ -23,7 +23,7 @@ func (api *BitcoinConfig) ConnectBitcoin() *bitcoind.Bitcoind {
 }
 
 /* get blockhash */
-func GetBlockHash(n uint64, bc *bitcoind.Bitcoind) string {
+func (api *BitcoinConfig) GetBlockHash(n uint64, bc *bitcoind.Bitcoind) string {
 	hash, err := bc.GetBlockHash(n)
 	if err != nil {
 		log.Fatalf("Failed to get blockHash: %v", err)
@@ -32,7 +32,7 @@ func GetBlockHash(n uint64, bc *bitcoind.Bitcoind) string {
 }
 
 /* get block */
-func GetBlock(hash string, bc *bitcoind.Bitcoind) bitcoind.Block {
+func (api *BitcoinConfig) GetBlock(hash string, bc *bitcoind.Bitcoind) bitcoind.Block {
 	block, err := bc.GetBlock(hash)
 	if err != nil {
 		log.Fatalf("Failed to get blockBlock: %v", err)
@@ -41,11 +41,11 @@ func GetBlock(hash string, bc *bitcoind.Bitcoind) bitcoind.Block {
 }
 
 /* get raw transaction */
-func GetRawTransaction(t string, v bool, bc *bitcoind.Bitcoind) bitcoind.RawTransaction {
+func (api *BitcoinConfig) GetRawTransaction(t string, v bool, bc *bitcoind.Bitcoind) bitcoind.RawTransaction {
 	msg_tx, err := bc.GetRawTransactionUPD(t, v)	
 	if err != nil {
 		log.Fatalf("Failed to get rawTransaction: %v", err)
 	}
 	return msg_tx
 }
-		
+

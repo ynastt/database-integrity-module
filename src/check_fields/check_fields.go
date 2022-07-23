@@ -46,9 +46,9 @@ func Check(db driver.Database) {
     	
 	var n uint64
 	for n = start; n <= end ; n ++ {
-		hash := btc.GetBlockHash(n, bc)
+		hash := bcApi.GetBlockHash(n, bc)
 		log.Printf("block %d has blockHash: %s\n", n, hash)
-		block := btc.GetBlock(hash, bc)
+		block := bcApi.GetBlock(hash, bc)
 		str := strconv.FormatInt(int64(block.Height), 10)
 		//log.Printf("fileds for btcBlock: height: %d, key: %s, hash: %s\n", block.Height, str, hash)
 		arr_block = append(arr_block, ar.BitcoinBlockNode{ BlockHeight: block.Height, Key: str, BlockHash: hash, })
@@ -56,7 +56,7 @@ func Check(db driver.Database) {
 		/* get all txid from msg_block - block.Tx */
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
-			msg_tx := btc.GetRawTransaction(t, true, bc)
+			msg_tx := bcApi.GetRawTransaction(t, true, bc)
 			log.Printf("fileds for btcTx: key: %s\ntime: %d\n", msg_tx.Txid, msg_tx.Time)
 			arr_tx = append(arr_tx, ar.BitcoinTxNode{ Key: msg_tx.Txid, Time: msg_tx.Time})
 			parentBlockKey := str + "_" + msg_tx.Txid

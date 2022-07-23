@@ -89,9 +89,9 @@ func main() {
     	fmt.Scanf("%d", &end)
     	
 	for n = start; n <= end; n ++ {
-		hash := btc.GetBlockHash(n, bc)
+		hash := bcApi.GetBlockHash(n, bc)
 		//log.Printf("block %d has blockHash: %s\n", n, hash)
-		block := btc.GetBlock(hash, bc)
+		block := bcApi.GetBlock(hash, bc)
 		log.Printf("_key in btcBlock: %d\n", block.Height)
 		str := strconv.FormatInt(int64(block.Height), 10)
 		arr_block = append(arr_block, ar.Node{ Key: str, })
@@ -100,7 +100,7 @@ func main() {
 		/* get all txid from msg_block - block.Tx */
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
-			msg_tx := btc.GetRawTransaction(t, true, bc)
+			msg_tx := bcApi.GetRawTransaction(t, true, bc)
 			log.Printf("_key in btcTx: %s\n", msg_tx.Txid)
 			arr_tx = append(arr_tx, ar.Node{ Key: msg_tx.Txid, })
 			//txs <- arr_tx

@@ -16,10 +16,8 @@ import (
 )
 
 var keys *os.File
-//var db driver.Database
 
-func main() {
-	
+func main() {	
 	var err error
 	
 	/* connect to bitcoin-core */

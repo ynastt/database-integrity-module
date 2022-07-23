@@ -15,7 +15,6 @@ import (
 )
 
 var file *os.File
-var db driver.Database
 
 func Check(db driver.Database) {
 	var err error

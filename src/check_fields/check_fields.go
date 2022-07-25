@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"os"
+	"sync"
 	driver "github.com/arangodb/go-driver"
 	ar "arango"
 	btc "bitcoin_rpc"
@@ -38,33 +39,55 @@ func Check(db driver.Database) {
 	arr_next := make([]ar.BitcoinNextEdge, 0, 1000)	
 	arr_parent := make([]ar.BitcoinParentBlockEdge, 0, 1000)		
 	
+	/* make chans for each of collection */
+	/* later we`ll call goroutines for each collection*/
+	blocks := make(chan []ar.BitcoinBlockNode, 1)			
+	txs := make(chan []ar.BitcoinTxNode, 1)
+	in := make(chan []ar.BitcoinOutputEdge, 1)
+	out := make(chan []ar.BitcoinOutputEdge, 1)
+	next := make(chan []ar.BitcoinNextEdge, 1)
+	parents := make(chan []ar.BitcoinParentBlockEdge, 1)
+	
 	var start, end uint64
     	fmt.Println("Enter the starting block index: ")
     	fmt.Scanf("%d", &start)
     	fmt.Println("Enter the ending block index: ")
     	fmt.Scanf("%d", &end)
     	
+    	var wg1 sync.WaitGroup
+    	wg1.Add(int(end-start+1))
+    	
 	var n uint64
 	for n = start; n <= end ; n ++ {
+		
 		hash := bcApi.GetBlockHash(n, bc)
 		log.Printf("block %d has blockHash: %s\n", n, hash)
 		block := bcApi.GetBlock(hash, bc)
 		str := strconv.FormatInt(int64(block.Height), 10)
 		//log.Printf("fileds for btcBlock: height: %d, key: %s, hash: %s\n", block.Height, str, hash)
 		arr_block = append(arr_block, ar.BitcoinBlockNode{ BlockHeight: block.Height, Key: str, BlockHash: hash, })
-				
+		blocks <- arr_block
+		arr_block = arr_block[:0]
+		go CheckFieldsofBlockNode(db, "btcBlock", blocks, file, &wg1)		
 		/* get all txid from msg_block - block.Tx */
 		/* for each txid get the raw transaction */
 		for _, t := range block.Tx {
 			msg_tx := bcApi.GetRawTransaction(t, true, bc)
 			log.Printf("fileds for btcTx: key: %s\ntime: %d\n", msg_tx.Txid, msg_tx.Time)
 			arr_tx = append(arr_tx, ar.BitcoinTxNode{ Key: msg_tx.Txid, Time: msg_tx.Time})
+			arr_tx = arr_tx[:0]
+			wg1.Add(1)
+			go CheckFieldsofTxNode(db, "btcTx", txs, file, &wg1)
 			parentBlockKey := str + "_" + msg_tx.Txid
 			//log.Printf("_key in btcParentBlock: %s\n", parentBlockKey)
 			arr_parent = append(arr_parent, ar.BitcoinParentBlockEdge{ Key: parentBlockKey,
 										     From: "btcTx/" + msg_tx.Txid,
 										     To: "btcBlock/" + strconv.Itoa(int(n)), 
 										   })
+			parents <- arr_parent
+			arr_parent = arr_parent[:0]
+			wg1.Add(1)
+			go CheckFieldsofParentEdge(db, "btcParentBlock", parents, file, &wg1)				   
 			for _, vin := range msg_tx.Vin {
 				txid := vin.Txid
 				//log.Printf("txid field: %s", txid)
@@ -80,7 +103,7 @@ func Check(db driver.Database) {
 					edgeOutKey = msg_tx.Txid + "_" + voutstr
 				} else {
 					edgesKey = txid + "_" + voutstr
-					edgeOutKey = msg_tx.Txid + "_" + voutstr
+					edgeOutKey = txid + "_" + voutstr
 				}
 				//log.Printf("_key in btcIn: %s\n", edgesKey)
 				//log.Printf("_key in btcOut: %s\n", edgeOutKey)
@@ -103,7 +126,10 @@ func Check(db driver.Database) {
 											OutIndex: vout,
 											SpentBtc: uint64(val * math.Pow10(8)),
 											Time: time, })
-					
+					in <- arr_in
+					arr_in = arr_in[:0]
+					wg1.Add(1)
+					go CheckFieldsofInOutEdge(db, "btcIn", in, file, &wg1)
 					arr_next = append(arr_next, ar.BitcoinNextEdge{ 
 											Key: edgesKey,
 											From: "btcTx/t",	
@@ -111,6 +137,10 @@ func Check(db driver.Database) {
 											Address: "",		
 											OutIndex: vout,
 											SpentBtc: uint64(val * math.Pow10(8)), })	
+					next <- arr_next
+					arr_next = arr_next[:0]
+					wg1.Add(1)
+					go CheckFieldsofNextEdge(db, "btcNext", next, file, &wg1)
 				}
 				if edgeOutKey != "" {
 					arr_out = append(arr_out, ar.BitcoinOutputEdge{ 
@@ -120,20 +150,20 @@ func Check(db driver.Database) {
 											OutIndex: vout,
 											SpentBtc: uint64(val * math.Pow10(8)),
 											Time: time, })
+					out <- arr_out
+					arr_out = arr_out[:0]
+					wg1.Add(1)
+					go CheckFieldsofInOutEdge(db, "btcOut", out, file, &wg1)
 				}
 			}
 		}
-		CheckFieldsofTxNode(db, "btcTx", arr_tx, file)
-		CheckFieldsofParentEdge(db, "btcParentBlock", arr_parent, file)
-		CheckFieldsofInOutEdge(db, "btcOut", arr_in, file)
-		CheckFieldsofNextEdge(db, "btcNext", arr_next, file)
-		CheckFieldsofInOutEdge(db, "btcIn", arr_in, file)
 	}
-	CheckFieldsofBlockNode(db, "btcBlock", arr_block, file)
 	log.Println("end of checking fields")
 }
 
-func CheckFieldsofInOutEdge(db driver.Database, coll string, arr []ar.BitcoinOutputEdge, file *os.File) {
+func CheckFieldsofInOutEdge(db driver.Database, coll string, ch <-chan []ar.BitcoinOutputEdge, file *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)
@@ -159,7 +189,9 @@ func CheckFieldsofInOutEdge(db driver.Database, coll string, arr []ar.BitcoinOut
 	}
 }
 
-func CheckFieldsofNextEdge(db driver.Database, coll string, arr []ar.BitcoinNextEdge, file *os.File) {
+func CheckFieldsofNextEdge(db driver.Database, coll string, ch <-chan []ar.BitcoinNextEdge, file *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)
@@ -179,7 +211,9 @@ func CheckFieldsofNextEdge(db driver.Database, coll string, arr []ar.BitcoinNext
 	}
 }
 
-func CheckFieldsofParentEdge(db driver.Database, coll string, arr []ar.BitcoinParentBlockEdge, file *os.File) {
+func CheckFieldsofParentEdge(db driver.Database, coll string, ch <-chan []ar.BitcoinParentBlockEdge, file *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)
@@ -198,7 +232,9 @@ func CheckFieldsofParentEdge(db driver.Database, coll string, arr []ar.BitcoinPa
 	}	
 }
 
-func CheckFieldsofTxNode(db driver.Database, coll string, arr []ar.BitcoinTxNode, file *os.File) {
+func CheckFieldsofTxNode(db driver.Database, coll string, ch <-chan []ar.BitcoinTxNode, file *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)
@@ -217,7 +253,9 @@ func CheckFieldsofTxNode(db driver.Database, coll string, arr []ar.BitcoinTxNode
 	}
 }
 
-func CheckFieldsofBlockNode(db driver.Database, coll string, arr []ar.BitcoinBlockNode, file *os.File) {
+func CheckFieldsofBlockNode(db driver.Database, coll string, ch <-chan []ar.BitcoinBlockNode, file *os.File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	arr := <-ch
 	col, err := db.Collection(nil, coll)
 	if err != nil {
 		log.Fatalf("Failed openning the collection: %v", err)

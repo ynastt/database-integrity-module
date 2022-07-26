@@ -57,7 +57,7 @@ type BitcoinNextEdge struct {
 //BitcoinInEdge has the same structure as BitcoinOutputEdge but _from :'btcAddress/{_key}', _to: 'btcTx/{_key}'
 
 type ArangoConfig struct {
-	Hosr 		string
+	Host 		string
 	Port 		string
 	User 		string
 	Password	string

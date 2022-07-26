@@ -57,6 +57,7 @@ type BitcoinNextEdge struct {
 //BitcoinInEdge has the same structure as BitcoinOutputEdge but _from :'btcAddress/{_key}', _to: 'btcTx/{_key}'
 
 type ArangoConfig struct {
+	Hosr 		string
 	Port 		string
 	User 		string
 	Password	string
@@ -72,7 +73,7 @@ func (api *ArangoConfig) Connect() driver.Database {
 	flag.Parse()
 
 	conn, err = http.NewConnection(http.ConnectionConfig{
-		Endpoints: []string{"http://localhost:" + api.Port},
+		Endpoints: []string{"http://" + api.Host + ":" + api.Port},
 	})
 	if err != nil {
 		log.Fatalf("Failed to create HTTP connection: %v", err)

@@ -28,7 +28,7 @@ func main() {
 	
 	/* connect to arangodb server using http */
 	/* open ArangoDB database with entered name name */
-	dbApi := ar.ArangoConfig{ Port: "8529", User: "root", Password: "",}
+	dbApi := ar.ArangoConfig{ Host: "localhost", Port: "8529", User: "root", Password: "",}
 	db := dbApi.Connect()
 		
 	flag.Parse()
